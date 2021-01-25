@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "capture-website": "^1.2.8",
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "knex": "^0.21.16",
+    "pg": "^8.5.1"
   }
 }
