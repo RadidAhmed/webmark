@@ -1,36 +1,36 @@
 import React from "react";
 import AppBar from "@material-ui/core/AppBar";
 import Toolbar from "@material-ui/core/Toolbar";
-import IconButton from "@material-ui/core/IconButton";
 import Typography from "@material-ui/core/Typography";
 import InputBase from "@material-ui/core/InputBase";
 import { fade, makeStyles } from "@material-ui/core/styles";
-import MenuIcon from "@material-ui/icons/Menu";
 import SearchIcon from "@material-ui/icons/Search";
-import Button from "@material-ui/core/Button";
 import { useState } from "react";
 import Link from "@material-ui/core/Link";
 import auth from "./FirebaseAuth.js";
-import { useHistory, Link as RouterLink } from "react-router-dom";
+import { useHistory } from "react-router-dom";
 import InfiniteScroll from "react-infinite-scroll-component";
-
-const style = {
-  height: 200,
-  width: 200,
-  border: "1px solid green",
-  margin: 6,
-  padding: 8,
-};
+import CssBaseline from "@material-ui/core/CssBaseline";
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    flexGrow: 1,
+    width: "100vw",
+    height: "100vh",
+    backgroundColor: "#A9A9A9",
   },
   con: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr",
-    gridTemplateRows: "auto",
-
+    gridTemplateColumns: "repeat(auto-fill, minmax(256px, 1fr))",
+    gridTemplateRows: "1fr",
+    marginLeft: 10,
+    marginRight: 10,
+    marginTop: 70,
+    gap: 10,
+  },
+  img: {
+    "&:hover": {
+      opacity: 0.8,
+    },
   },
 
   container: {
@@ -89,27 +89,98 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 export default function ButtonAppBar() {
-  let history = useHistory();
-  const [hasMore, setHasMore] = useState(true);
-  const [items, setItems] = useState(Array.from({ length: 5 }));
-
-  //Check if logged in
-  auth.auth().onAuthStateChanged((user) => {
-    if (user) {
-      var uid = user.uid;
-      console.log("ID IS ", uid);
-      // ...
-    } else {
-      // User is signed out
-      history.push("/Home");
-    }
-  });
-
   //import styles
   const classes = useStyles();
+  let history = useHistory();
+  const [hasMore, setHasMore] = useState(true);
+  const [disabled, setDisabled] = useState(false);
+  const [imageList, setImagelist] = useState({
+    items: [],
+    page: 0,
+  });
+  //fectching
+  let fetchMoreData = () => {
+    if (!hasMore) {
+      return;
+    }
+    auth.auth().onAuthStateChanged((user) => {
+      if (user) {
+        var uid = user.uid;
+        auth
+          .auth()
+          .currentUser.getIdToken(/* forceRefresh */ true)
+          .then(function (idToken) {
+            const option2 = {
+              method: "GET", //GET, POST, PUT, DELETE, etc.
+              mode: "cors", // no-cors, *cors, same-origin
+              headers: {
+                Authorization: idToken,
+              },
+            };
+            fetch(
+              `http://localhost:5000/getImages?page=${imageList.page}`,
+              option2
+            )
+              .then((result) => result.json())
+              .then((result) => {
+                if (result.length == 0) {
+                  setHasMore(false);
+                  return;
+                }
+                setImagelist({
+                  items: imageList.items.concat(result),
+                  page: imageList.page + 1,
+                });
+              });
+          });
+        // ...
+      } else {
+        // User is signed out
+        history.push("/");
+      }
+    });
+  };
 
+  let addData = (event) => {
+    if (event.keyCode == 13) {
+      setDisabled(true);
+      const link = event.target.value;
+      event.target.value = ""
+      auth
+        .auth()
+        .currentUser.getIdToken(/* forceRefresh */ true)
+        .then(function (idToken) {
+          const option = {
+            method: "POST", //GET, POST, PUT, DELETE, etc.
+            mode: "cors", // no-cors, *cors, same-origin
+            headers: {
+              Authorization: idToken,
+              "Content-Type": "text/plain",
+            },
+            body: link,
+          };
 
-//signout function
+          fetch("http://localhost:5000/addImage", option)
+            .then((reponse) => reponse.json())
+            .then((reponse) => {
+              setImagelist({
+                items: reponse.concat(imageList.items),
+                page: imageList.page,
+              });
+              setDisabled(false);
+            })
+            .catch((e) => {
+              console.log(e);
+              setDisabled(false);
+            });
+        })
+        .catch(function (error) {
+          // Handle error
+        });
+    }
+  };
+
+  //signout function
   const signOut = () => {
     auth
       .auth()
@@ -122,87 +193,69 @@ export default function ButtonAppBar() {
       });
   };
 
-  //fectching
-  let fetchMoreData = () => {
-    if (items.length >= 500) {
-      setHasMore(false);
-      return;
-    }
-    // a fake async api call like which sends
-    // 20 more records in .5 secs
-    console.log("iteams are", items.length);
-    setTimeout(() => {
-      console.log("iteams are", items.length);
-      setItems(items.concat(Array.from({ length: 20 })));
-      console.log("iteams are", items.length);
-    }, 500);
-  };
-
-  let addData = () => { 
-    setItems(Array.from("a").concat(items));
-  }
+  if (imageList.items.length == 0 && imageList.page == 0) fetchMoreData();
 
   return (
-    <div>
-      <AppBar position="fixed">
-        <Toolbar className={classes.container}>
-          <Typography variant="h6" className={classes.title}>
-            WebMark
-          </Typography>
+    <CssBaseline>
+      <div className={classes.root}>
+        <AppBar position="fixed">
+          <Toolbar className={classes.container}>
+            <Typography variant="h6" className={classes.title}>
+              WebMark
+            </Typography>
 
-          <div className={classes.search}>
-            <div className={classes.searchIcon}>
-              <SearchIcon />
+            <div className={classes.search}>
+              <div className={classes.searchIcon}>
+                <SearchIcon />
+              </div>
+              <InputBase
+                placeholder="Search…"
+                classes={{
+                  root: classes.inputRoot,
+                  input: classes.inputInput,
+                }}
+                disabled={disabled}
+                onKeyDown={addData}
+                inputProps={{ "aria-label": "search" }}
+              />
             </div>
-            <InputBase
-              placeholder="Search…"
-              classes={{
-                root: classes.inputRoot,
-                input: classes.inputInput,
-              }}
-              onClick={addData}
-              inputProps={{ "aria-label": "search" }}
-            />
-          </div>
-          <Link
-            href="/"
-            color="inherit"
-            onClick={signOut}
-            className={classes.signout}
-          >
-            <Typography className={classes.title}>SingOut</Typography>
-          </Link>
-        </Toolbar>
-      </AppBar>
+            <Link
+              href="/"
+              color="inherit"
+              onClick={signOut}
+              className={classes.signout}
+            >
+              <Typography className={classes.title}>Sign Out</Typography>
+            </Link>
+          </Toolbar>
+        </AppBar>
 
-      <InfiniteScroll
-        className={classes.con}
-        dataLength={items.length} //This is important field to render the next data
-        next={fetchMoreData}
-        hasMore={hasMore}
-        loader={<h4>Loading...</h4>}
-        endMessage={
-          <p style={{ textAlign: "center" }}>
-            <b>Yay! You have seen it all</b>
-          </p>
-        }
-      >
-        {items.map((i, index) => {
-          if (i) {
-            return (
-              <div style={style} key={index}>
-                div - #{i}
-              </div>
-            )
-          } else { 
-            return (
-              <div style={style} key={index}>
-                div - #{index}
-              </div>
-            )
-          }
-        })}
-      </InfiniteScroll>
-    </div>
+        <InfiniteScroll
+          className={classes.con}
+          dataLength={imageList.items.length} //This is important field to render the next data
+          next={fetchMoreData}
+          hasMore={hasMore}
+          loader={<h4>Loading...</h4>}
+          /*    endMessage={
+            <Typography>Yay! You have seen it all</Typography>
+        } */
+        >
+          {imageList.items.map((i, index) => {
+            if (i) {
+              return (
+                <Link href={i.web_link} target="_blank" key={index}>
+                  <img
+                    src={i.image_link}
+                    style={{ width: "100%", height: "100%" }}
+                    className={classes.img}
+                    alt="website image"
+                  />
+                </Link>
+              );
+            }
+          })}
+        </InfiniteScroll>
+      </div>
+    </CssBaseline>
   );
 }

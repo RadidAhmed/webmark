@@ -108,6 +108,8 @@ export default function SignIn(props) {
     .catch((error) => {
       var errorCode = error.code;
       var errorMessage = error.message;
+      console.log("error code:", errorCode);
+      console.log("error message:", errorMessage);
 
     });
 };
@@ -115,12 +117,11 @@ export default function SignIn(props) {
   const classes = useStyles();
   const formik = useFormik({
     initialValues: {
-      email: "radid.ahmed06@gmail.com",
-      password: "123456",
+      email: "",
+      password: "",
     },
     validationSchema: validationSchema,
     onSubmit: (values) => {
-      alert(JSON.stringify(values, null, 2));
       logIn(values.email, values.password);
     },
   });
@@ -131,7 +132,9 @@ export default function SignIn(props) {
   return (
     <Container component="main" maxWidth="xs">
       <CssBaseline />
+   
       <div className={classes.paper}>
+      <Typography  variant="h2">Webmark</Typography>
         <Avatar className={classes.avatar}>
           <LockOutlinedIcon />
         </Avatar>

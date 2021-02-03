@@ -2,12 +2,38 @@ require("dotenv").config();
 const express = require("express");
 const captureWebsite = require("capture-website");
 const fs = require("fs");
+const cors = require("cors");
 const app = express();
 const { v4: uuidv4 } = require("uuid");
 app.use(express.json());
 app.use(express.text());
 app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 app.use(express.static("public")); //Serves resources from public folder
+
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./webmark-3bd3a-firebase-adminsdk-5rkyt-5f5002611f.json");
+const { Console } = require("console");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+const verifyIdToken = async (idToken) => {
+  return await admin
+    .auth()
+    .verifyIdToken(idToken)
+    .then((decodedToken) => {
+      return decodedToken;
+      // ...
+    })
+    .catch((error) => {
+      console.log(error);
+      return null;
+    });
+};
+
 const knex = require("knex")({
   client: process.env.DB_CLIENT,
   connection: {
@@ -20,74 +46,138 @@ const knex = require("knex")({
 
 app.listen(process.env.SERVER_PORT);
 
-async function getImages(res, uid) {
-  const data = knex("user_table")
-    .join("image_table", "user_table.user_id", "=", "image_table.user_id")
-    .orderBy("image_table")
-    .where({
-      user_id: uid,
-    })
-    .select("image_table.image_link")
-    .then((data) => {
-      return data;
-    });
+async function getImages(res, uid, pageNum, total) {
+  try {
+    const a = await knex("image_table")
+      .join("user_table", "image_table.user_id", "=", "user_table.user_id")
+      .select("image_table.image_link", "image_table.web_link")
+      .where("image_table.user_id", "=", uid)
+      .orderBy("image_table.image_timezone", "desc")
+      .offset(pageNum * total)
+      .limit(total)
+      .then((data) => {
+        console.log("THE DATA WAS: ", data);
+        res.status(200).json(data);
+      });
+    console.log("a is ", a);
+  } catch (e) {
+    res.sendStatus(404);
+  }
+}
+async function isUserInDB(decodedToken) {
+  try {
+    const num = await knex("user_table")
+      .where({
+        user_id: decodedToken.uid,
+      })
+      .count("user_id")
+      .then((data) => {
+        return data[0].count;
+      });
+    return num > 0 ? true : false;
+  } catch (e) {
+    console.log("something went wrong with the db check");
+    console.log(e);
+  }
+}
 
-  res.json(data);
+async function addUserToDB(decodedToken) {
+  try {
+    knex("user_table")
+      .insert({
+        user_id: decodedToken.uid,
+        user_name: decodedToken.name,
+        user_email: decodedToken.email,
+      })
+      .then(() => console.log("added in a new user"));
+  } catch (e) {
+    console.log(e);
+    console.log("COULD NOT ADD NEW USER");
+  }
 }
 
 async function addImage(req, res, uid) {
-    const uuid4 = uuidv4();
-    const path = `./public/images/${uid}`
+  const uuid4 = uuidv4();
+  const path = `./public/images/${uid}`;
   try {
-    //add image to folder
-    if (!fs.existsSync(path)) { 
-        await fs.mkdir(path, e => { 
-            if (e) { 
-                throw e;
-            }
-        });
+    //make directory
+    if (!fs.existsSync(path)) {
+      await fs.mkdir(path, (e) => {
+        if (e) {
+          Console.log("something went wrong here");
+        }
+      });
     }
-    await captureWebsite.file(req.body, `public/images/${uid}/${uuid4}.png`);
+    //get the image
+    const options = {
+      width: 1024,
+      height: 1024,
+      type: "jpeg",
+      quality: 0,
+      scaleFactor: 1,
+      timeout: 10
+    };
+    await captureWebsite.file(
+      req.body,
+      `public/images/${uid}/${uuid4}.jpg`,
+      options
+    );
   } catch (e) {
-    console.log("works5 this is e", e);
-      res.status(404).send("image could not be added");
-      return;
+    console.log(e);
+    res.sendStatus(404);
+    return;
   }
   try {
     //add image information to database
-      console.log("works1");
-    await knex("image_table").insert({
-      user_id: uid,
-      image_link: `http://${process.env.DB_HOST}:${process.env.SERVER_PORT}/images/${uid}/${uuid4}.png`,
-      //formatting
-      image_timezone: new Date()
-        .toISOString()
-        .replace("T", " ")
-        .replace("Z", " ")
-        .replace(/\.(.*)/, ""),
-    });
-    console.log("works2");
-    await res.status(200).send("image uploaded sucessfully");
+    const link = `http://${process.env.DB_HOST}:${process.env.SERVER_PORT}/images/${uid}/${uuid4}.jpg`;
+    knex("image_table")
+      .insert({
+        user_id: uid,
+        image_link: link,
+        //formatting
+        web_link: req.body,
+        image_timezone: new Date()
+          .toISOString()
+          .replace("T", " ")
+          .replace("Z", " ")
+          .replace(/\.(.*)/, ""),
+      })
+      .then(() => {
+        console.log("added image");
+        res.status(200).json([{ image_link: link, web_link:req.body }]);
+      });
   } catch (e) {
-    fs.unlink(`public/images/${uuid4}.png`, (e) => {
+    //delete image from folder incase something fails
+    fs.unlink(`public/images/${uuid4}.jpg`, (e) => {
       if (e) {
-        console.log(`error with removing`);
-      } else {
-        console.log(`sucessfully removed ${uuid4}.png`);
+        console.log(e);
       }
     });
     console.log(e);
     res.status(404).send("image could not be added");
   }
-  console.log("works4");
 }
 
-app.get("/directory", async (req, res) => {
-  //getImages(res, "abc");
-    console.log('WOOORKS');
-    res.sendStatus(200);
+app.get("/getImages", async (req, res) => {
+  console.log("page num is: ", req.query.page);
+  const user = await verifyIdToken(req.get("Authorization"));
+  //console.log(user);
+  if (user) {
+    if (!isUserInDB(user)) addUserToDB(user);
+    await getImages(res, user.uid, req.query.page, 10);
+  } else {
+    res.status(404).send("User is not verified");
+  }
 });
 
-app.post("/directory", async (req, res) => {
-  addImage(req, res, "abc");
+app.post("/addImage", async (req, res) => {
+  const user = await verifyIdToken(req.get("Authorization"));
+  if (user) {
+    if (!(await isUserInDB(user))) {
+      await addUserToDB(user);
+    }
+    addImage(req, res, user.uid);
+  } else {
+    res.status(404).send("User is not verified");
+  }
 });

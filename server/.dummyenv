@@ -1,0 +1,10 @@
+# database variables
+
+DB_CLIENT=
+DB_HOST=
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+
+# server variable
+SERVER_PORT = 

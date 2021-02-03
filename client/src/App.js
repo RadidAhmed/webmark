@@ -11,7 +11,7 @@ export default function App() {
   return (
     <Router>
       <div>
-         <nav>
+{/*          <nav>
           <ul>
             <li>
               <Link to="/">Home</Link>
@@ -23,7 +23,7 @@ export default function App() {
               <Link to="/SignIn">SignIn</Link>
             </li>
           </ul>
-        </nav>
+        </nav> */}
  
         {/* A <Switch> looks through its children <Route>s and
             renders the first one that matches the current URL. */}
@@ -34,14 +34,11 @@ export default function App() {
           <Route exact path="/userWindow">
             <UserWindow />
           </Route>
-          <Route exact path="/SignIn">
-            <SignIn />
-          </Route>
           <Route exact path="/SignUp">
             <SignUp />
           </Route>
           <Route path="/">
-          <Home />
+          <SignIn />
           </Route>
         </Switch>
       </div>
