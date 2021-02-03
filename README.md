@@ -8,7 +8,7 @@
 - Client and server communicating using REST APIs.
 
 ### Noteable Features
-- Login/Signup feature (created using Firebase) with input valitaion.
+- Login/Signup feature (created using Firebase) with input validataion.
 - API pagination to avoid large data requests to server.
 - Infinite scroll.
 
